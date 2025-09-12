@@ -82,7 +82,7 @@ def api_summarize(text: str, instructions: str, max_len=520, min_len=160) -> str
 def extract_text_from_pdf(file_obj):
     """Essaie d'abord d'extraire le texte natif. 
     Si pas de texte → fallback OCR avec pytesseract."""
-    doc = fitz.open(stream=file_obj.read(), filetype="pdf")
+    doc = fitz.open(stream=file_obj, filetype="pdf")
     texts = []
     for page in doc:
         t = page.get_text("text")
