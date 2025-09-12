@@ -170,45 +170,44 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Résumé d'AO BTP (LED 16k)") as d
     output = gr.Markdown(label="Résumé ciblé")
 
     def _run(pdf_file, obj):
-        if not pdf_file:
-            yield 0, "Merci d'uploader un PDF.", ""
-            return
+    if not pdf_file:
+        yield 0, "Merci d'uploader un PDF.", ""
+        return
 
-        # Extraction
-        raw = extract_text_from_pdf(pdf_file)
-        text = clean_text(raw)
-        if not text or len(text) < 200:
-            yield 0, "⚠️ PDF vide ou scanné sans OCR utilisable.", ""
-            return
+    # Extraction
+    raw = extract_text_from_pdf(pdf_file)
+    text = clean_text(raw)
+    if not text or len(text) < 200:
+        yield 0, "⚠️ PDF vide ou scanné sans OCR utilisable.", ""
+        return
 
-        instructions = build_instructions(obj or DEFAULT_OBJECTIF)
-        chunks = chunk_text_by_chars(text, max_chars=18000)
+    instructions = build_instructions(obj or DEFAULT_OBJECTIF)
+    chunks = chunk_text_by_chars(text, max_chars=18000)
 
-        logs_text = "⏳ Début de l'analyse...\n"
-        yield 0, logs_text, ""  # reset
+    logs_text = "⏳ Début de l'analyse...\n"
+    yield 0, logs_text, ""  # reset tout
 
-        partials = []
-        total = len(chunks)
-        for idx, chunk in enumerate(chunks, start=1):
-            part = api_summarize(chunk, instructions, max_len=520, min_len=160)
-            partials.append(part)
+    partials = []
+    total = len(chunks)
+    for idx, chunk in enumerate(chunks, start=1):
+        part = api_summarize(chunk, instructions, max_len=520, min_len=160)
+        partials.append(part)
 
-            # Mise à jour logs
-            logs_text += f"- Chunk {idx}/{total} analysé ✅\n"
-            progress_value = int((idx / total) * 80)  # max 80% pour l'étape intermédiaire
-            yield progress_value, logs_text, ""
+        # Mise à jour logs
+        logs_text += f"- Chunk {idx}/{total} analysé ✅\n"
+        progress_value = int((idx / total) * 80)  # max 80% pour étape intermédiaire
+        yield progress_value, logs_text, ""
 
-        # Résumé final
-        logs_text += "\n⏳ Génération du résumé final..."
-        yield 90, logs_text, ""
+    # Résumé final
+    logs_text += "\n⏳ Génération du résumé final..."
+    yield 90, logs_text, ""
 
-        concat = "\n\n".join(partials)
-        final = api_summarize(concat, instructions, max_len=700, min_len=200)
+    concat = "\n\n".join(partials)
+    final = api_summarize(concat, instructions, max_len=700, min_len=200)
 
-        logs_text += "\n✅ Résumé final généré."
-        yield 100, logs_text, final
+    logs_text += "\n✅ Résumé final généré."
+    yield 100, logs_text, final
 
-    run.click(_run, inputs=[pdf, objectif], outputs=[progress, logs, output])
 
 
 
