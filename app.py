@@ -209,6 +209,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Résumé d'AO BTP (LED 16k)") as d
     yield 100, logs_text, final
 
 
+run.click(_run, inputs=[pdf, objectif], outputs=[progress, logs, output])
 
 
 demo.launch()
