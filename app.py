@@ -1,9 +1,8 @@
 import os
 import re
 import requests
-import PyMuPDF  
 import gradio as gr
-import fitz  # PyMuPDF
+import fitz  # donc PyMuPDF
 from PIL import Image
 import pytesseract
 import io
