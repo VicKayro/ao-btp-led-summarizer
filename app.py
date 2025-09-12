@@ -53,31 +53,30 @@ FORMAT DE SORTIE STRICT (Markdown) :
 - ...
 """
 
+PRIMARY_MODEL = "allenai/led-large-16384"
+FALLBACK_MODEL = "facebook/bart-large-cnn"
+
 def api_summarize(text: str, instructions: str, max_len=520, min_len=160) -> str:
-    """Appelle l'API Inference HF (LED 16k) en mode 'summarization'."""
-    if not HF_TOKEN:
-        return ("[ERREUR] Le secret HF_TOKEN est manquant.\n"
-                "Dans ton Space : Settings → Repository secrets → ajoute 'HF_TOKEN' "
-                "avec un token (scope: Read) créé sur https://huggingface.co/settings/tokens")
-    payload = {
-        "inputs": instructions + "\n\nDOCUMENT:\n" + text,
-        "parameters": {
-            "max_length": max_len,
-            "min_length": min_len,
-            "do_sample": False
+    model = PRIMARY_MODEL
+    for attempt in range(2):  # essaye 2 fois : LED puis fallback
+        api_url = f"https://api-inference.huggingface.co/models/{model}"
+        payload = {
+            "inputs": instructions + "\n\nDOCUMENT:\n" + text,
+            "parameters": {"max_length": max_len, "min_length": min_len, "do_sample": False}
         }
-    }
-    resp = requests.post(API_URL, headers=HEADERS, json=payload, timeout=180)
-    if resp.status_code != 200:
-        return f"[API {resp.status_code}] {resp.text}"
-    data = resp.json()
-    # Réponses typiques: [{"summary_text": "..."}] ou {"error": "..."} si modèle cold start
-    if isinstance(data, dict) and "error" in data:
-        return f"[API error] {data['error']}"
-    try:
-        return data[0]["summary_text"]
-    except Exception:
-        return str(data)
+        resp = requests.post(api_url, headers=HEADERS, json=payload, timeout=180)
+        if resp.status_code == 200:
+            try:
+                data = resp.json()
+                return data[0]["summary_text"]
+            except Exception:
+                return str(data)
+        else:
+            if attempt == 0:
+                # log fallback
+                model = FALLBACK_MODEL
+            else:
+                return f"[API {resp.status_code}] {resp.text}"
 
 def extract_text_from_pdf(file_obj):
     """Essaie d'abord d'extraire le texte natif. 
