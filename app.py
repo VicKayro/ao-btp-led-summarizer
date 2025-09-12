@@ -10,7 +10,7 @@ import io
 # =========================
 # Config
 # =========================
-MODEL_ID = "allenai/led-base-16384"
+MODEL_ID = "allenai/led-large-16384"
 HF_TOKEN = os.getenv("HF_TOKEN")  # défini dans Settings -> Repository secrets
 API_URL = f"https://api-inference.huggingface.co/models/{MODEL_ID}"
 HEADERS = {"Authorization": f"Bearer {HF_TOKEN}"} if HF_TOKEN else {}
