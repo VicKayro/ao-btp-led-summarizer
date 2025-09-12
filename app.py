@@ -1,8 +1,12 @@
 import os
 import re
 import requests
-import fitz  # PyMuPDF
+import PyMuPDF  
 import gradio as gr
+import fitz  # PyMuPDF
+from PIL import Image
+import pytesseract
+import io
 
 # =========================
 # Config
@@ -76,13 +80,20 @@ def api_summarize(text: str, instructions: str, max_len=520, min_len=160) -> str
     except Exception:
         return str(data)
 
-def extract_text_from_pdf(file_obj) -> str:
-    """Lit le PDF (texte natif). NB: pas d'OCR pour les scans dans ce POC."""
+def extract_text_from_pdf(file_obj):
+    """Essaie d'abord d'extraire le texte natif. 
+    Si pas de texte → fallback OCR avec pytesseract."""
     doc = fitz.open(stream=file_obj.read(), filetype="pdf")
-    pages = []
+    texts = []
     for page in doc:
-        pages.append(page.get_text("text"))
-    return "\n".join(pages)
+        t = page.get_text("text")
+        if not t.strip():  
+            # pas de texte -> OCR
+            pix = page.get_pixmap()
+            img = Image.open(io.BytesIO(pix.tobytes("png")))
+            t = pytesseract.image_to_string(img, lang="fra")  # OCR FR
+        texts.append(t)
+    return "\n".join(texts)
 
 def clean_text(t: str) -> str:
     t = re.sub(r"\r", "\n", t)
