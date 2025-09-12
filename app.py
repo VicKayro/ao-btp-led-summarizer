@@ -2,7 +2,7 @@ import os
 import re
 import requests
 import gradio as gr
-import fitz  # donc PyMuPDF
+import fitz  # PyMuPDF
 from PIL import Image
 import pytesseract
 import io
@@ -10,9 +10,9 @@ import io
 # =========================
 # Config
 # =========================
-MODEL_ID = "allenai/led-large-16384"
+PRIMARY_MODEL = "allenai/led-large-16384"
+FALLBACK_MODEL = "facebook/bart-large-cnn"
 HF_TOKEN = os.getenv("HF_TOKEN")  # défini dans Settings -> Repository secrets
-API_URL = f"https://api-inference.huggingface.co/models/{MODEL_ID}"
 HEADERS = {"Authorization": f"Bearer {HF_TOKEN}"} if HF_TOKEN else {}
 
 DEFAULT_OBJECTIF = (
@@ -28,16 +28,13 @@ def build_instructions(objectif: str) -> str:
     return f"""Tu es un assistant expert en marchés publics dans le BTP.
 Lis l'extrait d'appel d'offres ci-dessous et produis un résumé ciblé, concis et actionnable.
 Ne fais PAS un résumé narratif global, mais un extrait orienté exécution.
-
 Objectif utilisateur :
 {objectif}
-
 Contraintes :
 - Sois exhaustif sur les éléments demandés dans l'objectif, pas le reste.
 - Utilise des puces claires (une idée = une puce).
 - Normalise les intitulés quand c'est possible (ex: DOE = Dossier des Ouvrages Exécutés).
 - Si une info est absente, écris "Non précisé".
-
 FORMAT DE SORTIE STRICT (Markdown) :
 # Résumé ciblé AO BTP
 ## 📦 Pièces à produire
@@ -53,10 +50,12 @@ FORMAT DE SORTIE STRICT (Markdown) :
 - ...
 """
 
-PRIMARY_MODEL = "allenai/led-large-16384"
-FALLBACK_MODEL = "facebook/bart-large-cnn"
-
 def api_summarize(text: str, instructions: str, max_len=520, min_len=160) -> str:
+    if not HF_TOKEN:
+        return ("[ERREUR] Le secret HF_TOKEN est manquant.\n"
+                "➡️ Va dans ton Space : Settings → Repository secrets → ajoute 'HF_TOKEN'\n"
+                "avec un token Hugging Face (scope: Read).")
+
     model = PRIMARY_MODEL
     for attempt in range(2):  # essaye 2 fois : LED puis fallback
         api_url = f"https://api-inference.huggingface.co/models/{model}"
@@ -65,6 +64,7 @@ def api_summarize(text: str, instructions: str, max_len=520, min_len=160) -> str
             "parameters": {"max_length": max_len, "min_length": min_len, "do_sample": False}
         }
         resp = requests.post(api_url, headers=HEADERS, json=payload, timeout=180)
+
         if resp.status_code == 200:
             try:
                 data = resp.json()
@@ -73,7 +73,7 @@ def api_summarize(text: str, instructions: str, max_len=520, min_len=160) -> str
                 return str(data)
         else:
             if attempt == 0:
-                # log fallback
+                print(f"⚠️ LED indisponible ({resp.status_code}), fallback sur BART")
                 model = FALLBACK_MODEL
             else:
                 return f"[API {resp.status_code}] {resp.text}"
@@ -100,10 +100,7 @@ def clean_text(t: str) -> str:
     return t.strip()
 
 def chunk_text_by_chars(t: str, max_chars: int = 18000):
-    """
-    LED accepte ~16k tokens. On approxime en chars.
-    On découpe par paragraphes pour éviter de couper en plein milieu.
-    """
+    """Découpe en chunks ~16k tokens (approx chars)."""
     paragraphs = t.split("\n\n")
     chunks, buf = [], ""
     for p in paragraphs:
@@ -113,7 +110,6 @@ def chunk_text_by_chars(t: str, max_chars: int = 18000):
             if buf:
                 chunks.append(buf)
             if len(p) > max_chars:
-                # Sécurité : coupe les très gros paragraphes
                 for i in range(0, len(p), max_chars):
                     chunks.append(p[i:i+max_chars])
                 buf = ""
@@ -123,36 +119,13 @@ def chunk_text_by_chars(t: str, max_chars: int = 18000):
         chunks.append(buf)
     return chunks
 
-def summarize_ao(pdf_file, objectif):
-    # 1) Extraction
-    raw = extract_text_from_pdf(pdf_file)
-    text = clean_text(raw)
-    if not text or len(text) < 200:
-        return "Le PDF semble vide ou scanné (image). Ce POC ne fait pas d'OCR."
-
-    instructions = build_instructions(objectif or DEFAULT_OBJECTIF)
-
-    # 2) Chunking si le doc est long
-    chunks = chunk_text_by_chars(text, max_chars=18000)
-
-    # 3) Résumé par chunk
-    partials = []
-    for idx, chunk in enumerate(chunks, start=1):
-        part = api_summarize(chunk, instructions, max_len=520, min_len=160)
-        partials.append(f"### Résumé partiel {idx}\n{part}")
-
-    # 4) Résumé final des résumés
-    concat = "\n\n".join(partials)
-    final = api_summarize(concat, instructions, max_len=700, min_len=200)
-    return final
-
 # =========================
 # UI Gradio
 # =========================
 with gr.Blocks(theme=gr.themes.Soft(), title="Résumé d'AO BTP (LED 16k)") as demo:
     gr.Markdown("# 🏗️ Résumé d'AO BTP (LED 16k)\n"
                 "Upload un AO (PDF). L’IA extrait **pièces à produire, livrables, contraintes**.\n"
-                "*(Modèle : allenai/led-base-16384 via Hugging Face Inference API)*")
+                "*(Modèle : allenai/led-large-16384 via Hugging Face Inference API, fallback BART si indispo)*")
 
     with gr.Row():
         pdf = gr.File(label="PDF de l'appel d'offres", file_types=[".pdf"], type="binary")
@@ -163,7 +136,6 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Résumé d'AO BTP (LED 16k)") as d
         )
 
     run = gr.Button("Analyser le PDF", variant="primary")
-
     progress = gr.Slider(label="Progression", minimum=0, maximum=100, value=0, step=1, interactive=False)
     logs = gr.Markdown(label="Logs", value="Aucune analyse lancée.")
     output = gr.Markdown(label="Résumé ciblé")
@@ -173,7 +145,6 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Résumé d'AO BTP (LED 16k)") as d
             yield 0, "Merci d'uploader un PDF.", ""
             return
     
-        # Extraction
         raw = extract_text_from_pdf(pdf_file)
         text = clean_text(raw)
         if not text or len(text) < 200:
@@ -192,12 +163,10 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Résumé d'AO BTP (LED 16k)") as d
             part = api_summarize(chunk, instructions, max_len=520, min_len=160)
             partials.append(part)
     
-            # Mise à jour logs
             logs_text += f"- Chunk {idx}/{total} analysé ✅\n"
-            progress_value = int((idx / total) * 80)  # max 80% pour étape intermédiaire
+            progress_value = int((idx / total) * 80)
             yield progress_value, logs_text, ""
     
-        # Résumé final
         logs_text += "\n⏳ Génération du résumé final..."
         yield 90, logs_text, ""
     
@@ -207,9 +176,6 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Résumé d'AO BTP (LED 16k)") as d
         logs_text += "\n✅ Résumé final généré."
         yield 100, logs_text, final
 
-
-
     run.click(_run, inputs=[pdf, objectif], outputs=[progress, logs, output])
-
 
 demo.launch()
