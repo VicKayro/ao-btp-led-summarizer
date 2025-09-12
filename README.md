@@ -1,21 +1,31 @@
-# Résumé d'Appels d'Offres BTP (LED 16k)
+---
+title: Ao Btp Led Summarizer
+emoji: 📉
+colorFrom: gray
+colorTo: indigo
+sdk: gradio
+sdk_version: 5.45.0
+app_file: app.py
+pinned: false
+---
 
-Application **Gradio** déployée sur Hugging Face Spaces.  
-Elle permet d’analyser un **appel d’offres BTP (PDF)** et d’en extraire :
+Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
 
-- Pièces techniques à produire  
-- Livrables attendus  
-- Contraintes majeures (délais, normes, certifications, formats)
+---
 
-## Stack technique
-- [allenai/led-large-16384](https://huggingface.co/allenai/led-large-16384) pour lire des documents longs (16k tokens)
-- Fallback automatique sur [facebook/bart-large-cnn](https://huggingface.co/facebook/bart-large-cnn) si LED est indispo
-- OCR via PyMuPDF + Tesseract pour gérer les PDF scannés
-- Gradio pour l’UI
+# Résumé d'AO BTP (LED 16k)
 
-## Installation locale
-```bash
-git clone https://github.com/<ton-user>/ao-btp-led-summarizer.git
-cd ao-btp-led-summarizer
-pip install -r requirements.txt
-python app.py
+Application Gradio hébergée sur Hugging Face Space.  
+Lit des appels d'offres (PDF) et extrait :
+- Pièces/documents à produire
+- Livrables attendus
+- Contraintes (délais, normes, certifications, formats)
+
+**Modèle** : `allenai/led-base-16384` via Hugging Face Inference API.
+
+## Lancer le Space
+1. Crée un token HF (scope: Read) : https://huggingface.co/settings/tokens  
+2. Dans le Space → Settings → Repository secrets → `HF_TOKEN` = ton token  
+3. Fichiers requis : `app.py`, `requirements.txt`
+
+> Remarque : Ce POC ne fait pas d’OCR (les PDF scannés ne sont pas pris en charge).
