@@ -1,5 +1,5 @@
 gradio
-pymupdf
+pymupdf==1.22.5
 requests
 pytesseract
 pillow
