@@ -42,7 +42,7 @@ Elle utilise **GPT-4o-mini (OpenAI API)** avec chunking intelligent → capable 
 
 ---
 
-## ⚙Stack technique
+## Stack technique
 
 - [Gradio](https://gradio.app/) → Interface utilisateur simple et élégante  
 - [PyMuPDF](https://pymupdf.readthedocs.io/) → Extraction de texte natif des PDF  
@@ -52,7 +52,7 @@ Elle utilise **GPT-4o-mini (OpenAI API)** avec chunking intelligent → capable 
 
 ---
 
-## 🛠Installation locale
+## Installation locale
 
 ### 1. Clone le projet
 ```bash
@@ -89,7 +89,7 @@ python app.py
 3. Dans **Settings → Repository secrets**, ajoute :
 
    * `OPENAI_API_KEY` = ta clé OpenAI
-4. Redémarre le Space → ton app est en ligne 🎉
+4. Redémarre le Space → ton app est en ligne 
 
 ---
 
@@ -109,6 +109,6 @@ Un vrai **assistant de pré-analyse AO** pour les BE / services marchés.
 ## Licence
 
 MIT – utilisation libre et open source.
-N’hésitez pas à contribuer (pull requests bienvenues 🚀).
+N’hésitez pas à contribuer (pull requests bienvenues).
 
 ```
