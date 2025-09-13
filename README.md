@@ -9,7 +9,7 @@ app_file: app.py
 pinned: false
 ---
 
-# 🏗Résumé d'Appels d'Offres (GPT-4o-mini)
+# Résumé d'Appels d'Offres (GPT-4o-mini)
 
 [![Python](https://img.shields.io/badge/Python-3.10-blue?logo=python)](https://www.python.org/)
 [![Gradio](https://img.shields.io/badge/Gradio-UI-orange?logo=gradio)](https://gradio.app/)
@@ -33,7 +33,11 @@ Elle utilise **GPT-4o-mini (OpenAI API)** avec chunking intelligent → capable 
 
 ## Capture d’écran
 
+
+
 <img width="1175" height="464" alt="image" src="https://github.com/user-attachments/assets/2614b716-447f-4a2f-9eb0-49f1867b17f2" />
+
+
 
 
 ---
