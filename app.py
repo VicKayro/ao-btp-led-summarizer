@@ -1,19 +1,17 @@
 import os
 import re
-import requests
 import gradio as gr
 import fitz  # PyMuPDF
 from PIL import Image
 import pytesseract
 import io
+from openai import OpenAI
 
 # =========================
 # Config
 # =========================
-PRIMARY_MODEL = "mistralai/Mistral-7B-Instruct-v0.2"
-FALLBACK_MODEL = "facebook/bart-large-cnn"
-HF_TOKEN = os.getenv("HF_TOKEN")
-HEADERS = {"Authorization": f"Bearer {HF_TOKEN}"} if HF_TOKEN else {}
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # défini dans Settings -> Repository secrets
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 DEFAULT_OBJECTIF = (
     "1) Pièces et documents techniques à produire "
@@ -25,9 +23,8 @@ DEFAULT_OBJECTIF = (
 # Utils
 # =========================
 def build_prompt(objectif: str, text: str) -> str:
-    return f"""Tu es un assistant expert en marchés publics BTP. 
-Lis l'appel d'offres suivant et produis un résumé **orienté exécution**. 
-Ne fais PAS de résumé narratif global.
+    return f"""Tu es un assistant expert en marchés publics dans le BTP. 
+Analyse l'appel d'offres ci-dessous et produis un résumé **orienté exécution**.
 
 Objectif :
 {objectif}
@@ -50,32 +47,22 @@ Format de sortie attendu (Markdown) :
 - ...
 """
 
-def api_infer(model: str, prompt: str, max_tokens=700):
-    if not HF_TOKEN:
-        return ("[ERREUR] Le secret HF_TOKEN est manquant.\n"
-                "➡️ Va dans ton Space : Settings → Repository secrets → ajoute 'HF_TOKEN'\n"
-                "avec un token Hugging Face (scope: Read).")
-
-    url = f"https://api-inference.huggingface.co/models/{model}"
-    payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": max_tokens,
-            "temperature": 0.2,
-            "return_full_text": False
-        }
-    }
-    resp = requests.post(url, headers=HEADERS, json=payload, timeout=180)
-    if resp.status_code != 200:
-        return f"[API {resp.status_code}] {resp.text}"
+def openai_summarize(prompt: str, max_tokens=800) -> str:
+    if not OPENAI_API_KEY:
+        return "[ERREUR] Le secret OPENAI_API_KEY est manquant. Ajoute-le dans Settings → Repository secrets."
     try:
-        data = resp.json()
-        if isinstance(data, list) and "generated_text" in data[0]:
-            return data[0]["generated_text"]
-        else:
-            return str(data)
-    except Exception:
-        return str(resp.text)
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",  # rapide, contexte long (~128k)
+            messages=[
+                {"role": "system", "content": "Tu es un assistant expert en appels d'offres BTP."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=max_tokens,
+            temperature=0.2
+        )
+        return resp.choices[0].message.content
+    except Exception as e:
+        return f"[OpenAI ERROR] {e}"
 
 def extract_text_from_pdf(file_obj):
     """Texte natif sinon OCR avec pytesseract."""
@@ -96,8 +83,8 @@ def clean_text(t: str) -> str:
     t = re.sub(r"[ \t]{2,}", " ", t)
     return t.strip()
 
-def chunk_text_by_chars(t: str, max_chars: int = 8000):
-    """On limite à ~8k caractères par chunk (Mistral-7B supporte ~32k tokens)."""
+def chunk_text_by_chars(t: str, max_chars: int = 15000):
+    """Découpe en chunks pour GPT-4o-mini (contexte long)."""
     paragraphs = t.split("\n\n")
     chunks, buf = [], ""
     for p in paragraphs:
@@ -114,10 +101,10 @@ def chunk_text_by_chars(t: str, max_chars: int = 8000):
 # =========================
 # UI Gradio
 # =========================
-with gr.Blocks(theme=gr.themes.Soft(), title="Résumé d'AO BTP (Mistral)") as demo:
-    gr.Markdown("# 🏗️ Résumé d'AO BTP (Mistral Instruct)\n"
+with gr.Blocks(theme=gr.themes.Soft(), title="Résumé d'AO BTP (GPT-4o-mini)") as demo:
+    gr.Markdown("# 🏗️ Résumé d'AO BTP (GPT-4o-mini)\n"
                 "Upload un AO (PDF). L’IA extrait **pièces à produire, livrables, contraintes**.\n"
-                "*(Modèle : Mistral-7B-Instruct via Hugging Face Inference API, fallback BART si indispo)*")
+                "*(Modèle : GPT-4o-mini via OpenAI API, contexte long)*")
 
     with gr.Row():
         pdf = gr.File(label="PDF de l'appel d'offres", file_types=[".pdf"], type="binary")
@@ -136,37 +123,37 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Résumé d'AO BTP (Mistral)") as d
         if not pdf_file:
             yield 0, "Merci d'uploader un PDF.", ""
             return
-    
+
         raw = extract_text_from_pdf(pdf_file)
         text = clean_text(raw)
         if not text or len(text) < 200:
             yield 0, "⚠️ PDF vide ou scanné sans OCR utilisable.", ""
             return
-    
+
         objectif_final = obj or DEFAULT_OBJECTIF
-        chunks = chunk_text_by_chars(text, max_chars=8000)
-    
+        chunks = chunk_text_by_chars(text, max_chars=15000)
+
         logs_text = "⏳ Début de l'analyse...\n"
         yield 0, logs_text, ""
-    
+
         partials = []
         total = len(chunks)
         for idx, chunk in enumerate(chunks, start=1):
             prompt = build_prompt(objectif_final, chunk)
-            part = api_infer(PRIMARY_MODEL, prompt, max_tokens=500)
+            part = openai_summarize(prompt, max_tokens=600)
             partials.append(part)
-    
+
             logs_text += f"- Chunk {idx}/{total} analysé ✅\n"
             progress_value = int((idx / total) * 80)
             yield progress_value, logs_text, ""
-    
+
         logs_text += "\n⏳ Génération du résumé final..."
         yield 90, logs_text, ""
-    
+
         concat = "\n\n".join(partials)
         prompt_final = build_prompt(objectif_final, concat)
-        final = api_infer(PRIMARY_MODEL, prompt_final, max_tokens=700)
-    
+        final = openai_summarize(prompt_final, max_tokens=1000)
+
         logs_text += "\n✅ Résumé final généré."
         yield 100, logs_text, final
 
