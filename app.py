@@ -23,7 +23,7 @@ DEFAULT_OBJECTIF = (
 # Utils
 # =========================
 def build_prompt(objectif: str, text: str) -> str:
-    return f"""Tu es un assistant expert en marchés publics dans le BTP. 
+    return f"""Tu es un assistant expert en analise d'appels d'offrs, et en préparation de réponse. 
 Analyse l'appel d'offres ci-dessous et produis un résumé **orienté exécution**.
 
 Objectif :
@@ -54,7 +54,7 @@ def openai_summarize(prompt: str, max_tokens=800) -> str:
         resp = client.chat.completions.create(
             model="gpt-4o-mini",  # rapide, contexte long (~128k)
             messages=[
-                {"role": "system", "content": "Tu es un assistant expert en appels d'offres BTP."},
+                {"role": "system", "content": "Tu es un assistant expert en appels d'offres."},
                 {"role": "user", "content": prompt}
             ],
             max_tokens=max_tokens,
@@ -101,8 +101,8 @@ def chunk_text_by_chars(t: str, max_chars: int = 15000):
 # =========================
 # UI Gradio
 # =========================
-with gr.Blocks(theme=gr.themes.Soft(), title="Résumé d'AO BTP (GPT-4o-mini)") as demo:
-    gr.Markdown("# 🏗️ Résumé d'AO BTP (GPT-4o-mini)\n"
+with gr.Blocks(theme=gr.themes.Soft(), title="Résumé d'AO (GPT-4o-mini)") as demo:
+    gr.Markdown("# 🏗️ Résumé d'AO (GPT-4o-mini)\n"
                 "Upload un AO (PDF). L’IA extrait **pièces à produire, livrables, contraintes**.\n"
                 "*(Modèle : GPT-4o-mini via OpenAI API, contexte long)*")
 
